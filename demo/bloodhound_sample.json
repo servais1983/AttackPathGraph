@@ -1,0 +1,7 @@
+{
+  "relationships": [
+    {"source": "user1", "target": "192.168.1.10"},
+    {"source": "user1", "target": "192.168.1.10:445"},
+    {"source": "user2", "target": "192.168.1.10:80"}
+  ]
+}

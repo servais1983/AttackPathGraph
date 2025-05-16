@@ -1,0 +1,13 @@
+<nmaprun>
+  <host>
+    <address addr="192.168.1.10"/>
+    <ports>
+      <port portid="80">
+        <service name="http"/>
+      </port>
+      <port portid="445">
+        <service name="microsoft-ds"/>
+      </port>
+    </ports>
+  </host>
+</nmaprun>

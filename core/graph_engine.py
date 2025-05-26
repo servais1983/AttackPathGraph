@@ -23,7 +23,22 @@ class AttackGraph:
         for src, dst, data in self.graph.edges(data=True):
             print(f"{src} --[{data.get('label', 'link')}]-> {dst}")
 
-    def export_to_neo4j(self, uri="bolt://localhost:7687", user="neo4j", password="neo4j"):
+    def export_to_neo4j(self, uri=None, user=None, password=None):
+        """
+        Exporte le graphe vers Neo4j.
+        
+        Args:
+            uri (str, optional): URI de connexion Neo4j. Si None, utilise la variable d'environnement NEO4J_URI ou la valeur par défaut.
+            user (str, optional): Nom d'utilisateur Neo4j. Si None, utilise la variable d'environnement NEO4J_USER ou la valeur par défaut.
+            password (str, optional): Mot de passe Neo4j. Si None, utilise la variable d'environnement NEO4J_PASSWORD ou la valeur par défaut.
+        """
+        import os
+        
+        # Utiliser les variables d'environnement ou les valeurs par défaut
+        uri = uri or os.environ.get("NEO4J_URI", "bolt://localhost:7687")
+        user = user or os.environ.get("NEO4J_USER", "neo4j")
+        password = password or os.environ.get("NEO4J_PASSWORD", "neo4j")
+        
         print("[*] Export vers Neo4j...")
         neo = Graph(uri, auth=(user, password))
         neo.delete_all()

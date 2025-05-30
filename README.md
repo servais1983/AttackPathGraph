@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/54483fa3-b5db-4770-8047-8ca90df8ea06)
+![image](attackpath.png)
 
 # 🧠 AttackPathGraph - Plateforme avancée d'analyse des chemins d'attaque
 

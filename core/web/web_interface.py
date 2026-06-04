@@ -1180,6 +1180,10 @@ function getScoreClass(score) {
         @self.app.route('/')
         def index():
             return render_template('index.html')
+
+        @self.app.route('/healthz')
+        def healthz():
+            return jsonify({'status': 'ok'})
         
         @self.app.route('/api/graph')
         def get_graph():
@@ -1296,7 +1300,12 @@ function getScoreClass(score) {
         # Démarrer le serveur
         logger.info(f"Démarrage du serveur web sur http://{host}:{port}")
         self.server_running = True
-        self.app.run(host=host, port=port, debug=debug)
+        if debug:
+            self.app.run(host=host, port=port, debug=debug)
+        else:
+            from waitress import serve
+
+            serve(self.app, host=host, port=port)
     
     def stop(self):
         """

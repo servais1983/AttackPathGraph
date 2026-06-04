@@ -76,11 +76,18 @@ attackpathgraph --nmap demo/nmap_sample.xml --bh demo/bloodhound_sample.json --w
 ```
 
 By default, the web UI listens on `127.0.0.1:5000`.
+In non-debug mode it is served through Waitress.
 
 For containers or remote access:
 
 ```bash
 attackpathgraph --web --host 0.0.0.0 --port 5000 --no-browser
+```
+
+Health check:
+
+```bash
+curl http://localhost:5000/healthz
 ```
 
 ## Docker

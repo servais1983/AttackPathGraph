@@ -54,3 +54,6 @@ exports/
 reports/
 temp/
 custom_graphs/
+cache/
+templates/
+static/

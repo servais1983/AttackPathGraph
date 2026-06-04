@@ -1,0 +1,46 @@
+{
+  "hosts": [
+    {
+      "address": "192.168.1.1",
+      "name": "server1.example.com",
+      "os_name": "Windows Server 2019"
+    },
+    {
+      "address": "192.168.1.2",
+      "name": "server2.example.com",
+      "os_name": "Ubuntu 20.04"
+    }
+  ],
+  "vulns": [
+    {
+      "id": "msf-vuln-001",
+      "host": "192.168.1.1",
+      "name": "MS17-010 EternalBlue",
+      "info": "SMB Remote Code Execution Vulnerability",
+      "severity": 9.5
+    },
+    {
+      "id": "msf-vuln-002",
+      "host": "192.168.1.2",
+      "name": "Apache Struts RCE",
+      "info": "Remote Code Execution Vulnerability",
+      "severity": 8.0
+    }
+  ],
+  "modules": [
+    {
+      "id": "msf-module-001",
+      "name": "EternalBlue Exploit",
+      "description": "Exploit for MS17-010 vulnerability",
+      "rank": "excellent",
+      "references": ["msf-vuln-001"]
+    },
+    {
+      "id": "msf-module-002",
+      "name": "Struts RCE Exploit",
+      "description": "Exploit for Apache Struts vulnerability",
+      "rank": "good",
+      "references": ["msf-vuln-002"]
+    }
+  ]
+}

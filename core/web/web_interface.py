@@ -11,6 +11,7 @@ import json
 import logging
 import threading
 import webbrowser
+import datetime
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_from_directory
 
@@ -1209,7 +1210,7 @@ function getScoreClass(score) {
                         'path': path_data['path'],
                         'score': path_data['score'],
                         'length': path_data['length'],
-                        'risk_level': self.scorer.get_risk_level(path_data['score']) if self.scorer else 'Unknown'
+                        'risk_level': self.scorer._get_risk_level(path_data['score']) if self.scorer else 'Unknown'
                     })
             
             # Ajouter les données MITRE ATT&CK si disponibles

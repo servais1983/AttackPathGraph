@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openvas-report>
+  <host>
+    <ip>192.168.1.1</ip>
+    <hostname>server1.example.com</hostname>
+    <os>Windows Server 2019</os>
+    <result id="vuln-001">
+      <name>SQL Injection Vulnerability</name>
+      <threat>High</threat>
+      <severity>8.5</severity>
+    </result>
+    <result id="vuln-002">
+      <name>Cross-Site Scripting</name>
+      <threat>Medium</threat>
+      <severity>6.5</severity>
+    </result>
+  </host>
+  <host>
+    <ip>192.168.1.2</ip>
+    <hostname>server2.example.com</hostname>
+    <os>Ubuntu 20.04</os>
+    <result id="vuln-003">
+      <name>Outdated OpenSSH</name>
+      <threat>Medium</threat>
+      <severity>5.5</severity>
+    </result>
+  </host>
+</openvas-report>

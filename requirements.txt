@@ -1,2 +1,6 @@
-py2neo
-networkx
+networkx>=3.2,<4
+py2neo>=2021.2.4,<2022
+Flask>=3.0,<4
+Jinja2>=3.1,<4
+requests>=2.31,<3
+chardet>=5,<6

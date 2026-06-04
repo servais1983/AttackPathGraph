@@ -1,34 +1,9 @@
-import xml.etree.ElementTree as ET
-import json
+"""Backward-compatible parser imports.
 
-def load_nmap_data(path):
-    print(f"[*] Chargement du fichier Nmap : {path}")
-    result = {}
-    tree = ET.parse(path)
-    root = tree.getroot()
+The parser implementation lives in ``core.parsers`` as a package. This module
+is kept for older imports that referenced ``core.parsers.py`` directly.
+"""
 
-    for host in root.findall("host"):
-        ip = host.find("address").attrib["addr"]
-        ports = []
-        for port in host.findall(".//port"):
-            portid = port.attrib["portid"]
-            service = port.find("service")
-            service_name = service.attrib.get("name", "unknown") if service is not None else "unknown"
-            ports.append((portid, service_name))
-        result[ip] = ports
+from core.parsers.parsers import load_bloodhound_data, load_nmap_data
 
-    return result
-
-def load_bloodhound_data(path):
-    print(f"[*] Chargement du fichier BloodHound : {path}")
-    with open(path, "r") as f:
-        data = json.load(f)
-      
-    result = {}
-    for rel in data.get("relationships", []):
-        src = rel.get("source")
-        dst = rel.get("target")
-        if src and dst:
-            result.setdefault(src, []).append(dst)
-
-    return result
+__all__ = ["load_bloodhound_data", "load_nmap_data"]

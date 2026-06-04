@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Ajouter le répertoire parent au chemin de recherche
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def test_parsers():
+def run_parsers_check():
     """
     Teste les modules de parsing.
     """
@@ -99,7 +99,7 @@ def test_parsers():
     logger.info("✅ Test des modules de parsing terminé avec succès")
     return True
 
-def test_analysis():
+def run_analysis_check():
     """
     Teste les modules d'analyse.
     """
@@ -194,7 +194,7 @@ def test_analysis():
     logger.info("✅ Test des modules d'analyse terminé avec succès")
     return True
 
-def test_scoring():
+def run_scoring_check():
     """
     Teste les modules de scoring.
     """
@@ -275,7 +275,7 @@ def test_scoring():
     logger.info("✅ Test des modules de scoring terminé avec succès")
     return True
 
-def test_reporting():
+def run_reporting_check():
     """
     Teste les modules de reporting.
     """
@@ -360,7 +360,7 @@ def test_reporting():
     logger.info("✅ Test des modules de reporting terminé avec succès")
     return True
 
-def test_integration():
+def run_integration_check():
     """
     Teste l'intégration des modules.
     """
@@ -597,19 +597,19 @@ def main():
     results = {}
     
     if args.all or args.parsers:
-        results["parsers"] = test_parsers()
+        results["parsers"] = run_parsers_check()
     
     if args.all or args.analysis:
-        results["analysis"] = test_analysis()
+        results["analysis"] = run_analysis_check()
     
     if args.all or args.scoring:
-        results["scoring"] = test_scoring()
+        results["scoring"] = run_scoring_check()
     
     if args.all or args.reporting:
-        results["reporting"] = test_reporting()
+        results["reporting"] = run_reporting_check()
     
     if args.all or args.integration:
-        results["integration"] = test_integration()
+        results["integration"] = run_integration_check()
     
     # Afficher le résumé
     print("\n=== Résumé des tests ===")

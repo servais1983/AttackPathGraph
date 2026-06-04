@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "attackpathgraph"
+version = "0.1.0"
+description = "Attack path graph analysis and reporting toolkit for authorized security assessments."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "AttackPathGraph contributors" }]
+dependencies = [
+  "networkx>=3.2,<4",
+  "py2neo>=2021.2.4,<2022",
+  "Flask>=3.0,<4",
+  "Jinja2>=3.1,<4",
+  "requests>=2.31,<3",
+  "chardet>=5,<6",
+]
+
+[project.optional-dependencies]
+pdf = ["weasyprint>=62,<63"]
+dev = ["pytest>=8,<9", "ruff>=0.5,<1"]
+
+[project.scripts]
+attackpathgraph = "pentest_graph:main"
+
+[tool.setuptools]
+py-modules = ["pentest_graph"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"

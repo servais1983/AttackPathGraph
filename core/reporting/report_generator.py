@@ -10,7 +10,6 @@ import os
 import logging
 import datetime
 import jinja2
-import weasyprint
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -348,7 +347,16 @@ class ReportGenerator:
         html_path = output_path.replace('.pdf', '.html')
         self.generate_html_report(html_path, title)
         
-        # Convertir le HTML en PDF
+        # Convertir le HTML en PDF. WeasyPrint needs native libraries on some
+        # systems, so import it only when PDF generation is requested.
+        try:
+            import weasyprint
+        except OSError as exc:
+            raise RuntimeError(
+                "PDF generation requires WeasyPrint native dependencies. "
+                "Install the OS packages documented by WeasyPrint or generate HTML instead."
+            ) from exc
+
         html = weasyprint.HTML(filename=html_path)
         html.write_pdf(output_path)
         

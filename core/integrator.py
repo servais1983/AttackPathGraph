@@ -44,7 +44,7 @@ class AttackPathGraphIntegrator:
         """
         try:
             # Parsers
-            from core.parsers.parsers import load_nmap_data, load_bloodhound_data
+            from core.parsers import load_nmap_data, load_bloodhound_data
             self.parsers['nmap'] = load_nmap_data
             self.parsers['bloodhound'] = load_bloodhound_data
             
@@ -165,6 +165,18 @@ class AttackPathGraphIntegrator:
         Args:
             data (dict): Données BloodHound
         """
+        if "relationships" in data:
+            for node_id, attrs in data.get("nodes", {}).items():
+                self.graph.add_node(node_id, **attrs)
+
+            for relation in data.get("relationships", []):
+                source = relation.get("source")
+                target = relation.get("target")
+                label = relation.get("label", "can_access")
+                if source and target:
+                    self.graph.add_edge(source, target, label=label)
+            return
+
         for user, targets in data.items():
             self.graph.add_node(user, type="user")
             for tgt in targets:

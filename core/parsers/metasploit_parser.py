@@ -174,8 +174,6 @@ def _parse_metasploit_xml(path, result):
             # Traitement des services et vulnérabilités pour cet hôte
             for service in host.findall('./services/service') or host.findall('./Services/Service'):
                 port = service.get('port') or service.find('./port').text if service.find('./port') else "0"
-                name = service.get('name') or service.find('./name').text if service.find('./name') else "unknown"
-                
                 # Création d'un nœud de service
                 service_id = f"{ip}:{port}"
                 

@@ -7,7 +7,6 @@ Ce module permet d'évaluer la criticité des chemins d'attaque.
 """
 
 import logging
-import math
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -274,6 +273,10 @@ class RiskScorer:
             return "Low"
         else:
             return "Info"
+
+    def get_risk_level(self, score):
+        """Return the risk level label for a numeric score."""
+        return self._get_risk_level(score)
     
     def get_risk_summary(self):
         """

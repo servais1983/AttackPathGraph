@@ -9,7 +9,6 @@ import os
 import sys
 import logging
 import argparse
-from pathlib import Path
 
 # Configuration du logging
 logging.basicConfig(
@@ -169,8 +168,8 @@ def run_analysis_check():
         logger.info(f"✅ Chemins critiques identifiés: {len(critical_paths)}")
         
         # Obtenir le résumé
-        summary = analyzer.get_attack_path_summary()
-        logger.info(f"✅ Résumé généré avec succès")
+        analyzer.get_attack_path_summary()
+        logger.info("✅ Résumé généré avec succès")
     except Exception as e:
         logger.error(f"❌ Erreur lors de l'analyse des chemins d'attaque: {e}")
         return False
@@ -262,8 +261,8 @@ def run_scoring_check():
         logger.info(f"✅ Scores de tous les chemins calculés: {len(path_scores)}")
         
         # Obtenir le résumé des risques
-        risk_summary = scorer.get_risk_summary()
-        logger.info(f"✅ Résumé des risques généré avec succès")
+        scorer.get_risk_summary()
+        logger.info("✅ Résumé des risques généré avec succès")
         
         # Obtenir la contribution des nœuds au risque
         node_risk = scorer.get_node_risk_contribution()
@@ -392,7 +391,7 @@ def run_integration_check():
         if os.path.exists(nmap_file):
             nmap_data = integrator.load_data('nmap', nmap_file)
             integrator.add_data_to_graph(nmap_data, 'nmap')
-            logger.info(f"✅ Données Nmap chargées et ajoutées au graphe")
+            logger.info("✅ Données Nmap chargées et ajoutées au graphe")
         else:
             logger.warning(f"⚠️ Fichier d'exemple Nmap non trouvé: {nmap_file}")
         
@@ -401,7 +400,7 @@ def run_integration_check():
         if os.path.exists(bh_file):
             bh_data = integrator.load_data('bloodhound', bh_file)
             integrator.add_data_to_graph(bh_data, 'bloodhound')
-            logger.info(f"✅ Données BloodHound chargées et ajoutées au graphe")
+            logger.info("✅ Données BloodHound chargées et ajoutées au graphe")
         else:
             logger.warning(f"⚠️ Fichier d'exemple BloodHound non trouvé: {bh_file}")
         
@@ -417,7 +416,7 @@ def run_integration_check():
         if os.path.exists(openvas_file):
             openvas_data = integrator.load_data('openvas', openvas_file)
             integrator.add_data_to_graph(openvas_data, 'openvas')
-            logger.info(f"✅ Données OpenVAS chargées et ajoutées au graphe")
+            logger.info("✅ Données OpenVAS chargées et ajoutées au graphe")
         else:
             logger.warning(f"⚠️ Fichier d'exemple OpenVAS non trouvé: {openvas_file}")
         
@@ -426,7 +425,7 @@ def run_integration_check():
         if os.path.exists(metasploit_file):
             metasploit_data = integrator.load_data('metasploit', metasploit_file)
             integrator.add_data_to_graph(metasploit_data, 'metasploit')
-            logger.info(f"✅ Données Metasploit chargées et ajoutées au graphe")
+            logger.info("✅ Données Metasploit chargées et ajoutées au graphe")
         else:
             logger.warning(f"⚠️ Fichier d'exemple Metasploit non trouvé: {metasploit_file}")
     except Exception as e:
@@ -435,19 +434,19 @@ def run_integration_check():
     
     # Initialiser les modules
     try:
-        analyzer = integrator.initialize_analyzer()
+        integrator.initialize_analyzer()
         logger.info("✅ Analyseur initialisé avec succès")
         
-        scorer = integrator.initialize_scorer()
+        integrator.initialize_scorer()
         logger.info("✅ Scorer initialisé avec succès")
         
         try:
-            mitre = integrator.initialize_mitre_integration()
+            integrator.initialize_mitre_integration()
             logger.info("✅ Intégration MITRE ATT&CK initialisée avec succès")
         except Exception as e:
             logger.warning(f"⚠️ Erreur lors de l'initialisation de l'intégration MITRE ATT&CK: {e}")
         
-        report_generator = integrator.initialize_report_generator()
+        integrator.initialize_report_generator()
         logger.info("✅ Générateur de rapports initialisé avec succès")
     except Exception as e:
         logger.error(f"❌ Erreur lors de l'initialisation des modules: {e}")

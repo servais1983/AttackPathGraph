@@ -10,7 +10,6 @@ import os
 import logging
 import datetime
 import jinja2
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

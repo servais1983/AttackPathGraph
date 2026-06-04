@@ -56,6 +56,7 @@ Common options:
 | `--report FILE` | Generate `.html` or `.pdf` report |
 | `--web` | Start the web UI |
 | `--neo4j` | Export to Neo4j |
+| `--neo4j-clear` | Clear Neo4j before export |
 
 Example:
 
@@ -111,6 +112,8 @@ attackpathgraph --nmap demo/nmap_sample.xml --neo4j
 ```
 
 Use `.env.example` as a starting point for local configuration.
+
+Existing Neo4j data is preserved by default. Add `--neo4j-clear` only when you explicitly want to wipe the target database before exporting.
 
 ## PDF Reports
 

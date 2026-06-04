@@ -9,7 +9,6 @@ Ce module permet d'intégrer tous les modules développés dans le projet.
 import os
 import logging
 import networkx as nx
-from pathlib import Path
 
 # Configuration du logging
 logging.basicConfig(
@@ -327,10 +326,10 @@ class AttackPathGraphIntegrator:
         if self.scorer is None:
             self.initialize_scorer()
         
-        path_scores = self.scorer.calculate_all_path_scores(paths)
+        self.scorer.calculate_all_path_scores(paths)
         
         # Obtenir les chemins critiques
-        critical_paths = self.analyzer.get_critical_attack_paths()
+        self.analyzer.get_critical_attack_paths()
         
         return self.analyzer.get_attack_path_summary()
     
@@ -370,7 +369,7 @@ class AttackPathGraphIntegrator:
         
         self.web_interface.start(host, port, debug, open_browser)
     
-    def export_to_neo4j(self, uri=None, user=None, password=None):
+    def export_to_neo4j(self, uri=None, user=None, password=None, clear=False):
         """
         Exporte le graphe vers Neo4j.
         
@@ -389,7 +388,9 @@ class AttackPathGraphIntegrator:
         
         logger.info(f"Export vers Neo4j: {uri}")
         neo = Graph(uri, auth=(user, password))
-        neo.delete_all()
+        if clear:
+            logger.warning("Suppression des données Neo4j existantes avant export")
+            neo.delete_all()
         
         # Exporter les nœuds
         for node, attrs in self.graph.nodes(data=True):
@@ -400,7 +401,7 @@ class AttackPathGraphIntegrator:
                 if key != "type":
                     neo_node[key] = value
             
-            neo.merge(neo_node)
+            neo.merge(neo_node, attrs.get("type", "Node"), "name")
         
         # Exporter les arêtes
         for src, dst, attrs in self.graph.edges(data=True):
@@ -413,6 +414,6 @@ class AttackPathGraphIntegrator:
                 if key != "label":
                     rel[key] = value
             
-            neo.merge(rel)
+            neo.merge(rel, self.graph.nodes[src].get("type", "Node"), "name")
         
         logger.info("Export terminé")

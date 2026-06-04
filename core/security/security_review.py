@@ -9,7 +9,6 @@ Ce module permet d'effectuer une analyse de sécurité sur le code du projet.
 import os
 import re
 import sys
-import subprocess
 import logging
 import json
 from pathlib import Path
@@ -180,7 +179,7 @@ class SecurityReviewer:
                     return False
             
             return True
-        except:
+        except ValueError:
             return False
     
     def _analyze_python_files(self):

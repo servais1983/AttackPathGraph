@@ -9,7 +9,6 @@ dans un graphe d'attaque.
 
 import networkx as nx
 import logging
-from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 

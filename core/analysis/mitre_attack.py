@@ -32,6 +32,10 @@ class MitreAttackIntegration:
         self.mitigations = {}
         self.groups = {}
         self.software = {}
+        self._stix_to_technique = {}
+        self._stix_to_mitigation = {}
+        self._stix_to_group = {}
+        self._stix_to_software = {}
         
         # Créer le répertoire de cache s'il n'existe pas
         os.makedirs(self.cache_dir, exist_ok=True)
@@ -128,6 +132,7 @@ class MitreAttackIntegration:
                             'tactics': [],
                             'mitigations': []
                         }
+                        self._stix_to_technique[obj_id] = technique_id
                         
                         # Associer les tactiques
                         for kill_chain_phase in obj.get('kill_chain_phases', []):
@@ -154,6 +159,7 @@ class MitreAttackIntegration:
                             'name': obj.get('name', ''),
                             'description': obj.get('description', '')
                         }
+                        self._stix_to_mitigation[obj_id] = mitigation_id
                 
                 elif obj_type == 'intrusion-set':
                     # Groupe
@@ -165,6 +171,7 @@ class MitreAttackIntegration:
                             'description': obj.get('description', ''),
                             'techniques': []
                         }
+                        self._stix_to_group[obj_id] = group_id
                 
                 elif obj_type == 'malware' or obj_type == 'tool':
                     # Logiciel
@@ -177,6 +184,7 @@ class MitreAttackIntegration:
                             'type': obj_type,
                             'techniques': []
                         }
+                        self._stix_to_software[obj_id] = software_id
             
             # Associer les relations
             for obj in data.get('objects', []):
@@ -187,27 +195,22 @@ class MitreAttackIntegration:
                     target_ref = obj.get('target_ref')
                     relationship_type = obj.get('relationship_type')
                     
-                    if relationship_type == 'mitigates' and target_ref in self.techniques:
-                        # Relation mitigation -> technique
-                        for mitigation_id, mitigation in self.mitigations.items():
-                            if source_ref == mitigation.get('id'):
-                                technique_id = self.techniques[target_ref].get('external_references', [{}])[0].get('external_id', '')
-                                if technique_id:
-                                    self.techniques[technique_id]['mitigations'].append(mitigation_id)
+                    if relationship_type == 'mitigates':
+                        mitigation_id = self._stix_to_mitigation.get(source_ref)
+                        technique_id = self._stix_to_technique.get(target_ref)
+                        if mitigation_id and technique_id:
+                            self.techniques[technique_id]['mitigations'].append(mitigation_id)
                     
                     elif relationship_type == 'uses':
                         # Relation groupe/logiciel -> technique
-                        if source_ref in self.groups and target_ref in self.techniques:
-                            group_id = self.groups[source_ref].get('id')
-                            technique_id = self.techniques[target_ref].get('external_references', [{}])[0].get('external_id', '')
-                            if group_id and technique_id:
-                                self.groups[group_id]['techniques'].append(technique_id)
+                        technique_id = self._stix_to_technique.get(target_ref)
+                        group_id = self._stix_to_group.get(source_ref)
+                        if group_id and technique_id:
+                            self.groups[group_id]['techniques'].append(technique_id)
                         
-                        elif source_ref in self.software and target_ref in self.techniques:
-                            software_id = self.software[source_ref].get('id')
-                            technique_id = self.techniques[target_ref].get('external_references', [{}])[0].get('external_id', '')
-                            if software_id and technique_id:
-                                self.software[software_id]['techniques'].append(technique_id)
+                        software_id = self._stix_to_software.get(source_ref)
+                        if software_id and technique_id:
+                            self.software[software_id]['techniques'].append(technique_id)
         
         except requests.RequestException as e:
             logger.error(f"Erreur lors de la requête MITRE ATT&CK: {e}")

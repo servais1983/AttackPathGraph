@@ -7,12 +7,10 @@ Ce module permet de visualiser les graphes d'attaque via une interface web.
 """
 
 import os
-import json
 import logging
 import threading
 import webbrowser
 import datetime
-from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_from_directory
 
 logger = logging.getLogger(__name__)
@@ -1210,7 +1208,7 @@ function getScoreClass(score) {
                         'path': path_data['path'],
                         'score': path_data['score'],
                         'length': path_data['length'],
-                        'risk_level': self.scorer._get_risk_level(path_data['score']) if self.scorer else 'Unknown'
+                        'risk_level': self.scorer.get_risk_level(path_data['score']) if self.scorer else 'Unknown'
                     })
             
             # Ajouter les données MITRE ATT&CK si disponibles
@@ -1244,7 +1242,7 @@ function getScoreClass(score) {
                 from core.graph_engine import AttackGraph
                 attack_graph = AttackGraph()
                 attack_graph.graph = self.graph
-                attack_graph.export_to_neo4j()
+                attack_graph.export_to_neo4j(clear=False)
                 return jsonify({'success': True})
             except Exception as e:
                 logger.error(f"Erreur lors de l'export vers Neo4j: {e}")

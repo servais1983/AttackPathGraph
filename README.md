@@ -86,8 +86,12 @@ In non-debug mode it is served through Waitress.
 For containers or remote access:
 
 ```bash
+export ATTACKPATHGRAPH_AUTH_USERNAME=analyst
+export ATTACKPATHGRAPH_AUTH_PASSWORD='replace-with-a-long-random-password'
 attackpathgraph --web --host 0.0.0.0 --port 5000 --no-browser
 ```
+
+Remote binding is refused unless both authentication variables are configured. The web UI uses HTTP Basic authentication, CSRF protection, request-size limits, and per-client rate limiting. Terminate TLS at a trusted reverse proxy and set `ATTACKPATHGRAPH_HTTPS_ONLY=true` when requests reach the application over HTTPS.
 
 Health check:
 
@@ -107,6 +111,8 @@ docker run --rm -p 5000:5000 attackpathgraph
 Run the app with Neo4j:
 
 ```bash
+cp .env.example .env
+# Replace every placeholder secret in .env before starting the stack.
 docker compose up --build
 ```
 
@@ -124,6 +130,8 @@ attackpathgraph --nmap demo/nmap_sample.xml --neo4j
 ```
 
 Use `.env.example` as a starting point for local configuration.
+
+Do not commit `.env`. For production, inject secrets through the deployment platform rather than storing them in the Compose file or image.
 
 Existing Neo4j data is preserved by default. Add `--neo4j-clear` only when you explicitly want to wipe the target database before exporting.
 
@@ -149,6 +157,8 @@ If native PDF dependencies are missing, generate HTML instead.
 ```bash
 python -m pip install -e ".[dev]"
 pytest -q
+ruff check .
+pip-audit -r requirements.txt
 ```
 
 Project layout:

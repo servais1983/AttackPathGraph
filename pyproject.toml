@@ -23,7 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 pdf = ["weasyprint>=62,<63"]
-dev = ["pytest>=8,<9", "ruff>=0.5,<1"]
+dev = ["pytest>=8,<9", "ruff>=0.5,<1", "pip-audit>=2.7,<3"]
 
 [project.scripts]
 attackpathgraph = "pentest_graph:main"

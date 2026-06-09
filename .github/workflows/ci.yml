@@ -24,3 +24,26 @@ jobs:
         run: ruff check .
       - name: Tests
         run: pytest -q
+      - name: Dependency audit
+        run: pip-audit -r requirements.txt
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t attackpathgraph:ci .
+      - name: Run container
+        run: |
+          docker run -d --name attackpathgraph \
+            -e ATTACKPATHGRAPH_AUTH_USERNAME=ci \
+            -e ATTACKPATHGRAPH_AUTH_PASSWORD=ci-test-password \
+            -p 5000:5000 attackpathgraph:ci
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5000/healthz; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs attackpathgraph
+          exit 1

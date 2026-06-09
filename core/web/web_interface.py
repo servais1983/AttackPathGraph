@@ -11,9 +11,24 @@ import logging
 import threading
 import webbrowser
 import datetime
+import hmac
+import secrets
+import time
+from collections import defaultdict, deque
 from flask import Flask, render_template, request, jsonify, send_from_directory
 
 logger = logging.getLogger(__name__)
+
+
+def _is_enabled(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _is_loopback_host(host):
+    return host in {'127.0.0.1', 'localhost', '::1'}
 
 
 def _file_contains(path, marker):
@@ -43,6 +58,13 @@ class WebInterface:
         self.analyzer = analyzer
         self.scorer = scorer
         self.mitre_integration = mitre_integration
+        self.auth_username = os.environ.get('ATTACKPATHGRAPH_AUTH_USERNAME', '')
+        self.auth_password = os.environ.get('ATTACKPATHGRAPH_AUTH_PASSWORD', '')
+        self.auth_enabled = bool(self.auth_username and self.auth_password)
+        self.csrf_token = secrets.token_urlsafe(32)
+        self.rate_limit = max(1, int(os.environ.get('ATTACKPATHGRAPH_RATE_LIMIT', '120')))
+        self.rate_window = max(1, int(os.environ.get('ATTACKPATHGRAPH_RATE_WINDOW', '60')))
+        self._request_history = defaultdict(deque)
         
         # Créer les répertoires nécessaires
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -63,6 +85,42 @@ class WebInterface:
             template_folder=self.template_dir,
             static_folder=self.static_dir
         )
+        self.app.config.update(
+            MAX_CONTENT_LENGTH=max(
+                1024,
+                int(os.environ.get('ATTACKPATHGRAPH_MAX_REQUEST_BYTES', str(1024 * 1024))),
+            ),
+            SESSION_COOKIE_HTTPONLY=True,
+            SESSION_COOKIE_SAMESITE='Strict',
+            SESSION_COOKIE_SECURE=_is_enabled('ATTACKPATHGRAPH_HTTPS_ONLY'),
+        )
+
+        @self.app.before_request
+        def enforce_request_security():
+            if request.endpoint == 'healthz' or request.path.startswith('/static/'):
+                return None
+
+            client_id = request.remote_addr or 'unknown'
+            now = time.monotonic()
+            history = self._request_history[client_id]
+            while history and now - history[0] >= self.rate_window:
+                history.popleft()
+            if len(history) >= self.rate_limit:
+                return jsonify({'error': 'Rate limit exceeded'}), 429
+            history.append(now)
+
+            if self.auth_enabled and not self._valid_basic_auth():
+                return (
+                    jsonify({'error': 'Authentication required'}),
+                    401,
+                    {'WWW-Authenticate': 'Basic realm="AttackPathGraph"'},
+                )
+
+            if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}:
+                supplied_token = request.headers.get('X-CSRF-Token', '')
+                if not hmac.compare_digest(supplied_token, self.csrf_token):
+                    return jsonify({'error': 'Invalid CSRF token'}), 403
+            return None
 
         @self.app.after_request
         def add_security_headers(response):
@@ -75,6 +133,10 @@ class WebInterface:
             response.headers['X-Content-Type-Options'] = 'nosniff'
             response.headers['X-Frame-Options'] = 'DENY'
             response.headers['Referrer-Policy'] = 'no-referrer'
+            response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+            response.headers['Cache-Control'] = 'no-store'
+            if _is_enabled('ATTACKPATHGRAPH_HTTPS_ONLY'):
+                response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
             return response
         
         # Configurer les routes
@@ -82,6 +144,15 @@ class WebInterface:
         
         # Serveur en cours d'exécution
         self.server_running = False
+
+    def _valid_basic_auth(self):
+        credentials = request.authorization
+        if credentials is None:
+            return False
+        return (
+            hmac.compare_digest(credentials.username or '', self.auth_username)
+            and hmac.compare_digest(credentials.password or '', self.auth_password)
+        )
     
     def _create_default_files(self):
         """
@@ -1099,9 +1170,11 @@ class AttackGraph {
         
         # JavaScript pour l'application
         app_js_path = os.path.join(self.static_dir, 'js', 'app.js')
-        if not _file_contains(app_js_path, '// AttackPathGraph app.js v3'):
+        if not _file_contains(app_js_path, '// AttackPathGraph app.js v4'):
             with open(app_js_path, 'w', encoding='utf-8') as f:
-                f.write("""// AttackPathGraph app.js v3
+                f.write("""// AttackPathGraph app.js v4
+let csrfToken = '';
+
 // Initialisation de l'application
 document.addEventListener('DOMContentLoaded', function() {
     // Initialiser le graphe
@@ -1109,7 +1182,17 @@ document.addEventListener('DOMContentLoaded', function() {
     graph.init();
     
     // Charger les données du graphe
-    fetch('/api/graph')
+    fetch('/api/security')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(security => {
+            csrfToken = security.csrf_token;
+            return fetch('/api/graph');
+        })
         .then(response => response.json())
         .then(data => {
             graph.loadData(data);
@@ -1130,7 +1213,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('export-neo4j').addEventListener('click', function() {
         fetch('/api/export/neo4j', {
             method: 'POST',
-            headers: { 'X-Requested-With': 'AttackPathGraph' }
+            headers: {
+                'X-Requested-With': 'AttackPathGraph',
+                'X-CSRF-Token': csrfToken
+            }
         })
             .then(response => response.json())
             .then(data => {
@@ -1149,7 +1235,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('generate-report').addEventListener('click', function() {
         fetch('/generate-report', {
             method: 'POST',
-            headers: { 'X-Requested-With': 'AttackPathGraph' }
+            headers: {
+                'X-Requested-With': 'AttackPathGraph',
+                'X-CSRF-Token': csrfToken
+            }
         })
             .then(response => {
                 if (!response.ok) {
@@ -1277,6 +1366,10 @@ function getScoreClass(score) {
         @self.app.route('/healthz')
         def healthz():
             return jsonify({'status': 'ok'})
+
+        @self.app.route('/api/security')
+        def security_config():
+            return jsonify({'csrf_token': self.csrf_token})
         
         @self.app.route('/api/graph')
         def get_graph():
@@ -1351,9 +1444,12 @@ function getScoreClass(score) {
                 attack_graph.graph = self.graph
                 attack_graph.export_to_neo4j(clear=False)
                 return jsonify({'success': True})
-            except Exception as e:
-                logger.error(f"Erreur lors de l'export vers Neo4j: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
+            except Exception:
+                logger.exception("Erreur lors de l'export vers Neo4j")
+                return jsonify({
+                    'success': False,
+                    'error': "L'export Neo4j a échoué. Consultez les journaux du serveur."
+                }), 500
         
         @self.app.route('/generate-report', methods=['POST'])
         def generate_report():
@@ -1382,9 +1478,9 @@ function getScoreClass(score) {
                     as_attachment=True,
                     download_name='attack-path-report.html'
                 )
-            except Exception as e:
-                logger.error(f"Erreur lors de la génération du rapport: {e}")
-                return f"Erreur lors de la génération du rapport: {e}", 500
+            except Exception:
+                logger.exception("Erreur lors de la génération du rapport")
+                return "La génération du rapport a échoué. Consultez les journaux du serveur.", 500
         
         @self.app.route('/static/<path:path>')
         def serve_static(path):
@@ -1403,6 +1499,15 @@ function getScoreClass(score) {
         if self.server_running:
             logger.warning("Le serveur est déjà en cours d'exécution")
             return
+
+        if not _is_loopback_host(host) and not self.auth_enabled:
+            raise RuntimeError(
+                "Refusing to expose the web UI without authentication. "
+                "Set ATTACKPATHGRAPH_AUTH_USERNAME and ATTACKPATHGRAPH_AUTH_PASSWORD."
+            )
+
+        if debug and not _is_loopback_host(host):
+            raise RuntimeError("Flask debug mode is restricted to loopback interfaces")
         
         # Ouvrir le navigateur
         if open_browser:

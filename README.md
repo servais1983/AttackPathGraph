@@ -12,6 +12,7 @@ It ingests common offensive and defensive sources such as Nmap, BloodHound, Open
 - Import BloodHound-style JSON relationships.
 - Import OpenVAS XML findings.
 - Import Metasploit JSON/XML hosts, vulnerabilities, and exploits.
+- Reject unsafe XML entities and expansion attacks in imported scanner files.
 - Build a NetworkX directed attack graph.
 - Identify entry points, critical assets, and attack paths.
 - Score paths and nodes by risk.
@@ -57,6 +58,8 @@ Common options:
 | `--web` | Start the web UI |
 | `--neo4j` | Export to Neo4j |
 | `--neo4j-clear` | Clear Neo4j before export |
+| `--max-paths N` | Bound attack-path enumeration, default `1000` |
+| `--max-path-length N` | Bound path length in edges, default `10` |
 
 Example:
 
@@ -121,6 +124,12 @@ attackpathgraph --nmap demo/nmap_sample.xml --neo4j
 Use `.env.example` as a starting point for local configuration.
 
 Existing Neo4j data is preserved by default. Add `--neo4j-clear` only when you explicitly want to wipe the target database before exporting.
+
+The web UI's Neo4j export action is disabled by default. Enable it only for trusted deployments:
+
+```bash
+export ATTACKPATHGRAPH_ENABLE_NEO4J_EXPORT=true
+```
 
 ## PDF Reports
 

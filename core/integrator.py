@@ -22,7 +22,7 @@ class AttackPathGraphIntegrator:
     Classe pour l'intégration des modules AttackPathGraph.
     """
     
-    def __init__(self):
+    def __init__(self, max_paths=1000, max_path_length=10):
         """
         Initialise l'intégrateur.
         """
@@ -33,6 +33,8 @@ class AttackPathGraphIntegrator:
         self.mitre_integration = None
         self.report_generator = None
         self.web_interface = None
+        self.max_paths = max_paths
+        self.max_path_length = max_path_length
         
         # Charger les modules
         self._load_modules()
@@ -245,7 +247,11 @@ class AttackPathGraphIntegrator:
         if not hasattr(self, 'analyzer_class'):
             raise ImportError("Module d'analyse des chemins d'attaque non disponible")
         
-        self.analyzer = self.analyzer_class(self.graph)
+        self.analyzer = self.analyzer_class(
+            self.graph,
+            max_paths=self.max_paths,
+            max_path_length=self.max_path_length,
+        )
         return self.analyzer
     
     def initialize_scorer(self):

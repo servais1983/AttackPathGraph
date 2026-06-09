@@ -1,5 +1,5 @@
 import json
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 
 
 def load_nmap_data(path):

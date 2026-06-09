@@ -15,6 +15,15 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 
 logger = logging.getLogger(__name__)
 
+
+def _file_contains(path, marker):
+    try:
+        with open(path, 'r', encoding='utf-8') as file:
+            return marker in file.read()
+    except OSError:
+        return False
+
+
 class WebInterface:
     """
     Classe pour l'interface web de visualisation des graphes d'attaque.
@@ -54,6 +63,19 @@ class WebInterface:
             template_folder=self.template_dir,
             static_folder=self.static_dir
         )
+
+        @self.app.after_request
+        def add_security_headers(response):
+            response.headers['Content-Security-Policy'] = (
+                "default-src 'self'; "
+                "script-src 'self' https://d3js.org https://cdn.jsdelivr.net; "
+                "style-src 'self'; img-src 'self' data:; connect-src 'self'; "
+                "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+            )
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+            response.headers['X-Frame-Options'] = 'DENY'
+            response.headers['Referrer-Policy'] = 'no-referrer'
+            return response
         
         # Configurer les routes
         self._setup_routes()
@@ -200,9 +222,10 @@ class WebInterface:
         
         # CSS
         css_path = os.path.join(self.static_dir, 'css', 'styles.css')
-        if not os.path.exists(css_path):
+        if not _file_contains(css_path, '/* AttackPathGraph styles v2 */'):
             with open(css_path, 'w', encoding='utf-8') as f:
-                f.write("""/* Variables */
+                f.write("""/* AttackPathGraph styles v2 */
+/* Variables */
 :root {
     --primary-color: #2c3e50;
     --secondary-color: #3498db;
@@ -458,6 +481,7 @@ main {
 
 /* Conteneur du graphe */
 #graph-container {
+    position: relative;
     height: 500px;
     background-color: #f5f5f5;
     border-radius: 0 0 8px 8px;
@@ -588,9 +612,21 @@ footer p {
         
         # JavaScript pour le graphe
         graph_js_path = os.path.join(self.static_dir, 'js', 'graph.js')
-        if not os.path.exists(graph_js_path):
+        if not _file_contains(graph_js_path, '// AttackPathGraph graph.js v4'):
             with open(graph_js_path, 'w', encoding='utf-8') as f:
-                f.write("""// Classe pour gérer le graphe d'attaque
+                f.write("""// AttackPathGraph graph.js v4
+// Echappe les donnees importees avant insertion dans le DOM.
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    })[character]);
+}
+
+// Classe pour gérer le graphe d'attaque
 class AttackGraph {
     constructor(containerId) {
         this.containerId = containerId;
@@ -678,6 +714,46 @@ class AttackGraph {
                     }
                 },
                 {
+                    selector: 'node[type = "host"]',
+                    style: {
+                        'shape': 'rectangle',
+                        'background-color': '#3498db',
+                        'border-color': '#2980b9'
+                    }
+                },
+                {
+                    selector: 'node[type = "service"]',
+                    style: {
+                        'shape': 'diamond',
+                        'background-color': '#2ecc71',
+                        'border-color': '#27ae60'
+                    }
+                },
+                {
+                    selector: 'node[type = "vulnerability"]',
+                    style: {
+                        'shape': 'ellipse',
+                        'background-color': '#e74c3c',
+                        'border-color': '#c0392b'
+                    }
+                },
+                {
+                    selector: 'node[type = "user"]',
+                    style: {
+                        'shape': 'hexagon',
+                        'background-color': '#9b59b6',
+                        'border-color': '#8e44ad'
+                    }
+                },
+                {
+                    selector: 'node[type = "exploit"]',
+                    style: {
+                        'shape': 'triangle',
+                        'background-color': '#f39c12',
+                        'border-color': '#d35400'
+                    }
+                },
+                {
                     selector: 'node.highlight',
                     style: {
                         'border-width': 3,
@@ -720,7 +796,7 @@ class AttackGraph {
                 refresh: 20,
                 fit: true,
                 padding: 30,
-                randomize: false,
+                randomize: true,
                 componentSpacing: 100,
                 nodeRepulsion: 400000,
                 edgeElasticity: 100,
@@ -730,8 +806,7 @@ class AttackGraph {
                 initialTemp: 200,
                 coolingFactor: 0.95,
                 minTemp: 1.0
-            },
-            wheelSensitivity: 0.3
+            }
         });
         
         // Événements
@@ -779,20 +854,12 @@ class AttackGraph {
         
         // Ajouter les nœuds
         for (const [id, attrs] of Object.entries(data.nodes)) {
-            const nodeType = attrs.type || 'unknown';
-            const style = this.nodeStyles[nodeType] || {};
-            
             elements.nodes.push({
                 data: {
                     id: id,
                     label: this.formatNodeLabel(id, attrs),
+                    type: attrs.type || 'unknown',
                     ...attrs
-                },
-                style: {
-                    'shape': style.shape || 'ellipse',
-                    'background-color': style.backgroundColor || '#666',
-                    'border-color': style.borderColor || '#333',
-                    'border-width': style.borderWidth || 2
                 }
             });
         }
@@ -864,13 +931,10 @@ class AttackGraph {
         document.getElementById('node-count').textContent = Object.keys(this.data.nodes).length;
         document.getElementById('edge-count').textContent = this.data.edges.length;
         
-        if (this.data.critical_paths) {
-            document.getElementById('critical-path-count').textContent = this.data.critical_paths.length;
-        }
-        
-        if (this.data.max_risk_score) {
-            document.getElementById('max-risk-score').textContent = this.data.max_risk_score.toFixed(1);
-        }
+        const attackPaths = this.data.attack_paths || [];
+        document.getElementById('critical-path-count').textContent = attackPaths.length;
+        const maxRiskScore = Math.max(0, ...attackPaths.map(path => Number(path.score) || 0));
+        document.getElementById('max-risk-score').textContent = maxRiskScore.toFixed(1);
     }
     
     // Sélectionner un nœud
@@ -905,43 +969,43 @@ class AttackGraph {
         const detailsContainer = document.getElementById('details-container');
         
         let html = `<div class="node-details">`;
-        html += `<h3>${data.label}</h3>`;
+        html += `<h3>${escapeHtml(data.label)}</h3>`;
         
-        html += `<div class="detail-item"><span class="detail-label">Type:</span> ${data.type || 'Inconnu'}</div>`;
+        html += `<div class="detail-item"><span class="detail-label">Type:</span> ${escapeHtml(data.type || 'Inconnu')}</div>`;
         
         // Détails spécifiques selon le type
         switch (data.type) {
             case 'host':
-                html += `<div class="detail-item"><span class="detail-label">IP:</span> ${data.ip || 'Inconnue'}</div>`;
-                html += `<div class="detail-item"><span class="detail-label">OS:</span> ${data.os || 'Inconnu'}</div>`;
+                html += `<div class="detail-item"><span class="detail-label">IP:</span> ${escapeHtml(data.ip || 'Inconnue')}</div>`;
+                html += `<div class="detail-item"><span class="detail-label">OS:</span> ${escapeHtml(data.os || 'Inconnu')}</div>`;
                 break;
             case 'service':
-                html += `<div class="detail-item"><span class="detail-label">Service:</span> ${data.service || 'Inconnu'}</div>`;
-                html += `<div class="detail-item"><span class="detail-label">Port:</span> ${data.port || 'Inconnu'}</div>`;
+                html += `<div class="detail-item"><span class="detail-label">Service:</span> ${escapeHtml(data.service || 'Inconnu')}</div>`;
+                html += `<div class="detail-item"><span class="detail-label">Port:</span> ${escapeHtml(data.port || 'Inconnu')}</div>`;
                 break;
             case 'vulnerability':
-                html += `<div class="detail-item"><span class="detail-label">Sévérité:</span> ${data.severity || '0.0'}</div>`;
-                html += `<div class="detail-item"><span class="detail-label">Description:</span> ${data.description || 'Aucune description'}</div>`;
+                html += `<div class="detail-item"><span class="detail-label">Sévérité:</span> ${escapeHtml(data.severity || '0.0')}</div>`;
+                html += `<div class="detail-item"><span class="detail-label">Description:</span> ${escapeHtml(data.description || 'Aucune description')}</div>`;
                 break;
             case 'user':
                 html += `<div class="detail-item"><span class="detail-label">Privilèges:</span> ${data.admin ? 'Administrateur' : 'Standard'}</div>`;
                 break;
             case 'exploit':
-                html += `<div class="detail-item"><span class="detail-label">Rank:</span> ${data.rank || 'Normal'}</div>`;
-                html += `<div class="detail-item"><span class="detail-label">Description:</span> ${data.description || 'Aucune description'}</div>`;
+                html += `<div class="detail-item"><span class="detail-label">Rank:</span> ${escapeHtml(data.rank || 'Normal')}</div>`;
+                html += `<div class="detail-item"><span class="detail-label">Description:</span> ${escapeHtml(data.description || 'Aucune description')}</div>`;
                 break;
         }
         
         // Connexions
-        const incomingEdges = this.cy.edges(`[target = "${data.id}"]`);
-        const outgoingEdges = this.cy.edges(`[source = "${data.id}"]`);
+        const incomingEdges = node.incomers('edge');
+        const outgoingEdges = node.outgoers('edge');
         
         if (incomingEdges.length > 0) {
             html += `<h4>Connexions entrantes</h4>`;
             html += `<ul>`;
             incomingEdges.forEach(edge => {
                 const source = this.cy.getElementById(edge.data('source'));
-                html += `<li>${source.data('label')} <strong>${edge.data('label') || 'lié à'}</strong> ${data.label}</li>`;
+                html += `<li>${escapeHtml(source.data('label'))} <strong>${escapeHtml(edge.data('label') || 'lié à')}</strong> ${escapeHtml(data.label)}</li>`;
             });
             html += `</ul>`;
         }
@@ -951,7 +1015,7 @@ class AttackGraph {
             html += `<ul>`;
             outgoingEdges.forEach(edge => {
                 const target = this.cy.getElementById(edge.data('target'));
-                html += `<li>${data.label} <strong>${edge.data('label') || 'lié à'}</strong> ${target.data('label')}</li>`;
+                html += `<li>${escapeHtml(data.label)} <strong>${escapeHtml(edge.data('label') || 'lié à')}</strong> ${escapeHtml(target.data('label'))}</li>`;
             });
             html += `</ul>`;
         }
@@ -979,7 +1043,9 @@ class AttackGraph {
         for (let i = 0; i < path.length - 1; i++) {
             const sourceId = path[i];
             const targetId = path[i + 1];
-            const edge = this.cy.edges(`[source = "${sourceId}"][target = "${targetId}"]`);
+            const edge = this.cy.edges().filter(candidate =>
+                candidate.data('source') === sourceId && candidate.data('target') === targetId
+            );
             if (edge.length > 0) {
                 edge.addClass('highlight');
             }
@@ -1033,9 +1099,10 @@ class AttackGraph {
         
         # JavaScript pour l'application
         app_js_path = os.path.join(self.static_dir, 'js', 'app.js')
-        if not os.path.exists(app_js_path):
+        if not _file_contains(app_js_path, '// AttackPathGraph app.js v3'):
             with open(app_js_path, 'w', encoding='utf-8') as f:
-                f.write("""// Initialisation de l'application
+                f.write("""// AttackPathGraph app.js v3
+// Initialisation de l'application
 document.addEventListener('DOMContentLoaded', function() {
     // Initialiser le graphe
     const graph = new AttackGraph('graph-container');
@@ -1061,30 +1128,56 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Configurer les boutons d'action
     document.getElementById('export-neo4j').addEventListener('click', function() {
-        fetch('/api/export/neo4j', { method: 'POST' })
+        fetch('/api/export/neo4j', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'AttackPathGraph' }
+        })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     alert('Graphe exporté avec succès vers Neo4j!');
                 } else {
-                    alert('Erreur lors de l\'export: ' + data.error);
+                    alert("Erreur lors de l'export: " + data.error);
                 }
             })
             .catch(error => {
-                console.error('Erreur lors de l\'export:', error);
-                alert('Erreur lors de l\'export vers Neo4j.');
+                console.error("Erreur lors de l'export:", error);
+                alert("Erreur lors de l'export vers Neo4j.");
             });
     });
     
     document.getElementById('generate-report').addEventListener('click', function() {
-        window.location.href = '/generate-report';
+        fetch('/generate-report', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'AttackPathGraph' }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'attack-path-report.html';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(url);
+            })
+            .catch(error => {
+                console.error('Erreur lors de la génération du rapport:', error);
+                alert('Erreur lors de la génération du rapport.');
+            });
     });
 });
 
 // Charger les chemins d'attaque
 function loadAttackPaths(paths, graph) {
     if (!paths || paths.length === 0) {
-        document.getElementById('attack-paths-list').innerHTML = '<p class="empty-state">Aucun chemin d\'attaque trouvé.</p>';
+        document.getElementById('attack-paths-list').innerHTML = `<p class="empty-state">Aucun chemin d'attaque trouvé.</p>`;
         return;
     }
     
@@ -1102,7 +1195,7 @@ function loadAttackPaths(paths, graph) {
                 <span class="attack-path-score ${scoreClass}">${path.score.toFixed(1)}</span>
             </div>
             <div class="attack-path-info">
-                <small>${path.path.length} nœuds | ${path.risk_level}</small>
+                <small>${path.path.length} nœuds | ${escapeHtml(path.risk_level)}</small>
             </div>
         `;
         
@@ -1152,10 +1245,10 @@ function loadMitreData(mitreData) {
             techniqueElement.className = 'mitre-technique';
             techniqueElement.innerHTML = `
                 <div class="mitre-technique-header">
-                    <span class="mitre-technique-id">${technique.technique_id}</span>
-                    <span class="mitre-technique-tactic">${technique.tactic}</span>
+                    <span class="mitre-technique-id">${escapeHtml(technique.technique_id)}</span>
+                    <span class="mitre-technique-tactic">${escapeHtml(technique.tactic)}</span>
                 </div>
-                <div class="mitre-technique-name">${technique.name}</div>
+                <div class="mitre-technique-name">${escapeHtml(technique.name)}</div>
             `;
             techniquesContainer.appendChild(techniqueElement);
         });
@@ -1239,6 +1332,16 @@ function getScoreClass(score) {
         
         @self.app.route('/api/export/neo4j', methods=['POST'])
         def export_to_neo4j():
+            if request.headers.get('X-Requested-With') != 'AttackPathGraph':
+                return jsonify({'success': False, 'error': 'Requête refusée'}), 403
+
+            export_enabled = os.environ.get('ATTACKPATHGRAPH_ENABLE_NEO4J_EXPORT', '').lower()
+            if export_enabled not in {'1', 'true', 'yes'}:
+                return jsonify({
+                    'success': False,
+                    'error': 'Export Neo4j désactivé par configuration'
+                }), 403
+
             if self.graph is None:
                 return jsonify({'success': False, 'error': 'Aucun graphe disponible'}), 404
             
@@ -1252,8 +1355,11 @@ function getScoreClass(score) {
                 logger.error(f"Erreur lors de l'export vers Neo4j: {e}")
                 return jsonify({'success': False, 'error': str(e)}), 500
         
-        @self.app.route('/generate-report')
+        @self.app.route('/generate-report', methods=['POST'])
         def generate_report():
+            if request.headers.get('X-Requested-With') != 'AttackPathGraph':
+                return "Requête refusée", 403
+
             if self.graph is None:
                 return "Aucun graphe disponible", 404
             
@@ -1270,7 +1376,12 @@ function getScoreClass(score) {
                 generator.generate_html_report(report_path)
                 
                 # Servir le fichier
-                return send_from_directory(os.path.dirname(report_path), os.path.basename(report_path))
+                return send_from_directory(
+                    os.path.dirname(report_path),
+                    os.path.basename(report_path),
+                    as_attachment=True,
+                    download_name='attack-path-report.html'
+                )
             except Exception as e:
                 logger.error(f"Erreur lors de la génération du rapport: {e}")
                 return f"Erreur lors de la génération du rapport: {e}", 500

@@ -17,7 +17,7 @@ class AttackPathAnalyzer:
     Classe pour l'analyse des chemins d'attaque critiques dans un graphe.
     """
     
-    def __init__(self, graph):
+    def __init__(self, graph, max_paths=1000, max_path_length=10):
         """
         Initialise l'analyseur avec un graphe d'attaque.
         
@@ -28,6 +28,9 @@ class AttackPathAnalyzer:
         self.critical_paths = []
         self.node_scores = {}
         self.path_scores = {}
+        self.max_paths = max(1, int(max_paths))
+        self.max_path_length = max(1, int(max_path_length))
+        self.paths_truncated = False
         
     def identify_entry_points(self):
         """
@@ -158,13 +161,26 @@ class AttackPathAnalyzer:
             return []
         
         all_paths = []
+        self.paths_truncated = False
         
         for source in entry_points:
             for target in critical_assets:
                 try:
-                    # Trouver tous les chemins simples entre source et cible
-                    paths = list(nx.all_simple_paths(self.graph, source, target, cutoff=10))
-                    all_paths.extend(paths)
+                    paths = nx.all_simple_paths(
+                        self.graph,
+                        source,
+                        target,
+                        cutoff=self.max_path_length,
+                    )
+                    for path in paths:
+                        all_paths.append(path)
+                        if len(all_paths) >= self.max_paths:
+                            self.paths_truncated = True
+                            logger.warning(
+                                "Limite de %s chemins atteinte; analyse tronquée",
+                                self.max_paths,
+                            )
+                            return all_paths
                 except nx.NetworkXNoPath:
                     continue
         
@@ -279,6 +295,7 @@ class AttackPathAnalyzer:
         summary = {
             'total_paths': len(self.path_scores),
             'critical_paths': len(self.critical_paths),
+            'truncated': self.paths_truncated,
             'entry_points': self.identify_entry_points(),
             'critical_assets': self.identify_critical_assets(),
             'paths': []

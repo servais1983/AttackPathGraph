@@ -6,8 +6,8 @@ Module de parsing pour les fichiers XML d'OpenVAS.
 Ce module permet d'importer les résultats de scan OpenVAS dans AttackPathGraph.
 """
 
-import xml.etree.ElementTree as ET
 import logging
+from defusedxml import ElementTree as ET
 
 logger = logging.getLogger(__name__)
 

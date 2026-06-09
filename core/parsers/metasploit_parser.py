@@ -7,9 +7,9 @@ Ce module permet d'importer les résultats de scan Metasploit dans AttackPathGra
 """
 
 import json
-import xml.etree.ElementTree as ET
 import logging
 from pathlib import Path
+from defusedxml import ElementTree as ET
 
 logger = logging.getLogger(__name__)
 

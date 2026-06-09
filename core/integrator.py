@@ -194,6 +194,9 @@ class AttackPathGraphIntegrator:
         for host_id, host_data in data.get('hosts', {}).items():
             if not self.graph.has_node(host_id):
                 self.graph.add_node(host_id, **host_data)
+
+        for service_id, service_data in data.get('services', {}).items():
+            self.graph.add_node(service_id, **service_data)
         
         # Ajouter les vulnérabilités
         for vuln_id, vuln_data in data.get('vulnerabilities', {}).items():

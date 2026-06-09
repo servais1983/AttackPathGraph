@@ -11,11 +11,11 @@ It ingests common offensive and defensive sources such as Nmap, BloodHound, Open
 - Import Nmap XML hosts and exposed services.
 - Import BloodHound-style JSON relationships.
 - Import OpenVAS XML findings.
-- Import Metasploit JSON/XML hosts, vulnerabilities, and exploits.
+- Import Metasploit JSON hosts, vulnerabilities, and exploits, plus XML hosts, services, and vulnerabilities.
 - Reject unsafe XML entities and expansion attacks in imported scanner files.
 - Build a NetworkX directed attack graph.
 - Identify entry points, critical assets, and attack paths.
-- Score paths and nodes by risk.
+- Score paths and nodes with built-in heuristic risk rules.
 - Generate HTML reports, with optional PDF output through WeasyPrint.
 - Export graph data to Neo4j.
 - Start a Flask web UI for interactive graph exploration.
@@ -53,7 +53,7 @@ Common options:
 | `--ascii` | Print a simple terminal graph |
 | `--analyze` | Analyze attack paths |
 | `--score` | Print risk scores |
-| `--mitre` | Map vulnerabilities to MITRE ATT&CK techniques |
+| `--mitre` | Heuristically map vulnerabilities to MITRE ATT&CK techniques |
 | `--report FILE` | Generate `.html` or `.pdf` report |
 | `--web` | Start the web UI |
 | `--neo4j` | Export to Neo4j |
@@ -71,6 +71,8 @@ attackpathgraph \
   --score \
   --report reports/demo.html
 ```
+
+Path detection, risk scoring, and MITRE ATT&CK mapping are heuristic analysis aids. Validate their output against the source assessment data before using it for security decisions.
 
 ## Web UI
 

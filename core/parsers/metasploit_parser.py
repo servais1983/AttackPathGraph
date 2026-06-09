@@ -1,209 +1,199 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-Module de parsing pour les fichiers XML/JSON de Metasploit.
-Ce module permet d'importer les résultats de scan Metasploit dans AttackPathGraph.
-"""
+"""Metasploit JSON and XML parser."""
 
 import json
 import logging
 from pathlib import Path
+
 from defusedxml import ElementTree as ET
 
 logger = logging.getLogger(__name__)
 
-def load_metasploit_data(path):
-    """
-    Charge et parse un fichier généré par Metasploit (XML ou JSON).
-    
-    Args:
-        path (str): Chemin vers le fichier Metasploit
-        
-    Returns:
-        dict: Dictionnaire contenant les hôtes, vulnérabilités et leurs relations
-    """
-    logger.info(f"Chargement du fichier Metasploit : {path}")
-    result = {
+
+def _empty_result():
+    return {
         "hosts": {},
+        "services": {},
         "vulnerabilities": {},
         "exploits": {},
-        "relations": []
+        "relations": [],
     }
-    
-    file_path = Path(path)
-    
-    try:
-        # Déterminer le format du fichier
-        if file_path.suffix.lower() == '.json':
-            return _parse_metasploit_json(path, result)
-        elif file_path.suffix.lower() == '.xml':
-            return _parse_metasploit_xml(path, result)
-        else:
-            logger.error(f"Format de fichier non supporté: {file_path.suffix}")
-            return result
-            
-    except Exception as e:
-        logger.error(f"Erreur lors du traitement du fichier Metasploit: {e}")
-        return result
 
-def _parse_metasploit_json(path, result):
-    """
-    Parse un fichier JSON de Metasploit.
-    
-    Args:
-        path (str): Chemin vers le fichier JSON
-        result (dict): Dictionnaire de résultat à remplir
-        
-    Returns:
-        dict: Dictionnaire mis à jour
-    """
-    try:
-        with open(path, 'r') as f:
-            data = json.load(f)
-        
-        # Traitement des hôtes
-        if 'hosts' in data:
-            for host in data['hosts']:
-                ip = host.get('address') or host.get('ip') or host.get('host')
-                if not ip:
-                    continue
-                
-                result["hosts"][ip] = {
-                    "type": "host",
-                    "ip": ip,
-                    "os": host.get('os_name', ''),
-                    "hostname": host.get('name', '')
-                }
-        
-        # Traitement des vulnérabilités
-        if 'vulns' in data:
-            for vuln in data['vulns']:
-                vuln_id = vuln.get('id') or f"msf_vuln_{len(result['vulnerabilities'])}"
-                host_ip = vuln.get('host') or vuln.get('host_ip')
-                
-                if not host_ip:
-                    continue
-                
-                result["vulnerabilities"][vuln_id] = {
-                    "type": "vulnerability",
-                    "name": vuln.get('name', 'Vulnérabilité inconnue'),
-                    "info": vuln.get('info', ''),
-                    "severity": float(vuln.get('severity', 0.0)) if vuln.get('severity') else 0.0
-                }
-                
-                # Relation hôte-vulnérabilité
-                result["relations"].append({
-                    "source": host_ip,
-                    "target": vuln_id,
-                    "label": "has_vulnerability"
-                })
-        
-        # Traitement des exploits
-        if 'modules' in data or 'exploits' in data:
-            modules = data.get('modules', []) or data.get('exploits', [])
-            for module in modules:
-                module_id = module.get('id') or f"msf_module_{len(result['exploits'])}"
-                
-                result["exploits"][module_id] = {
-                    "type": "exploit",
-                    "name": module.get('name', 'Module inconnu'),
-                    "description": module.get('description', ''),
-                    "rank": module.get('rank', 'normal')
-                }
-                
-                # Relations exploit-vulnérabilité
-                for vuln_ref in module.get('references', []):
-                    if vuln_ref in result["vulnerabilities"]:
-                        result["relations"].append({
-                            "source": module_id,
-                            "target": vuln_ref,
-                            "label": "exploits"
-                        })
-        
-    except json.JSONDecodeError as e:
-        logger.error(f"Erreur de décodage JSON: {e}")
-    
-    return result
 
-def _parse_metasploit_xml(path, result):
-    """
-    Parse un fichier XML de Metasploit.
-    
-    Args:
-        path (str): Chemin vers le fichier XML
-        result (dict): Dictionnaire de résultat à remplir
-        
-    Returns:
-        dict: Dictionnaire mis à jour
-    """
+def _first_child(element, *names):
+    expected = {name.lower() for name in names}
+    for child in element:
+        if child.tag.rsplit("}", 1)[-1].lower() in expected:
+            return child
+    return None
+
+
+def _child_text(element, *names, default=""):
+    child = _first_child(element, *names)
+    if child is None or child.text is None:
+        return default
+    return child.text.strip()
+
+
+def _severity(element):
     try:
-        tree = ET.parse(path)
-        root = tree.getroot()
-        
-        # Traitement des hôtes
-        for host in root.findall('.//host') or root.findall('.//Host'):
-            ip = None
-            
-            # Récupération de l'adresse IP
-            addr_elem = host.find('./address') or host.find('./Address')
-            if addr_elem is not None:
-                ip = addr_elem.text or addr_elem.get('addr')
-            
-            if not ip:
-                continue
-                
-            # Ajout de l'hôte au résultat
-            result["hosts"][ip] = {
-                "type": "host",
-                "ip": ip,
-                "os": "",
-                "hostname": ""
+        return float(_child_text(element, "severity", default="0.0"))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _add_xml_vulnerability(parsed, vulnerability, source_id):
+    vulnerability_id = vulnerability.get(
+        "id",
+        f"msf_vuln_{len(parsed['vulnerabilities'])}",
+    )
+    parsed["vulnerabilities"][vulnerability_id] = {
+        "type": "vulnerability",
+        "name": vulnerability.get("name")
+        or _child_text(
+            vulnerability,
+            "name",
+            default="Unknown vulnerability",
+        ),
+        "info": _child_text(vulnerability, "info"),
+        "severity": _severity(vulnerability),
+    }
+    parsed["relations"].append(
+        {
+            "source": source_id,
+            "target": vulnerability_id,
+            "label": "has_vulnerability",
+        }
+    )
+
+
+def load_metasploit_data(path):
+    """Load a Metasploit JSON or XML export."""
+    logger.info("Loading Metasploit file: %s", path)
+    suffix = Path(path).suffix.lower()
+    if suffix == ".json":
+        return _parse_metasploit_json(path)
+    if suffix == ".xml":
+        return _parse_metasploit_xml(path)
+    raise ValueError(f"Unsupported Metasploit file format: {suffix}")
+
+
+def _parse_metasploit_json(path):
+    parsed = _empty_result()
+    with open(path, "r", encoding="utf-8") as source:
+        data = json.load(source)
+
+    for host in data.get("hosts", []):
+        host_ip = host.get("address") or host.get("ip") or host.get("host")
+        if not host_ip:
+            continue
+        parsed["hosts"][host_ip] = {
+            "type": "host",
+            "ip": host_ip,
+            "os": host.get("os_name", ""),
+            "hostname": host.get("name", ""),
+        }
+
+    for vulnerability in data.get("vulns", []):
+        host_ip = vulnerability.get("host") or vulnerability.get("host_ip")
+        if not host_ip:
+            continue
+        vulnerability_id = vulnerability.get(
+            "id",
+            f"msf_vuln_{len(parsed['vulnerabilities'])}",
+        )
+        try:
+            severity = float(vulnerability.get("severity") or 0.0)
+        except (TypeError, ValueError):
+            severity = 0.0
+        parsed["vulnerabilities"][vulnerability_id] = {
+            "type": "vulnerability",
+            "name": vulnerability.get("name", "Unknown vulnerability"),
+            "info": vulnerability.get("info", ""),
+            "severity": severity,
+        }
+        parsed["relations"].append(
+            {
+                "source": host_ip,
+                "target": vulnerability_id,
+                "label": "has_vulnerability",
             }
-            
-            # Récupération du nom d'hôte si disponible
-            hostname_elem = host.find('./hostname') or host.find('./Hostname')
-            if hostname_elem is not None:
-                result["hosts"][ip]["hostname"] = hostname_elem.text
-            
-            # Récupération du système d'exploitation si disponible
-            os_elem = host.find('./os_name') or host.find('./os')
-            if os_elem is not None:
-                result["hosts"][ip]["os"] = os_elem.text
-            
-            # Traitement des services et vulnérabilités pour cet hôte
-            for service in host.findall('./services/service') or host.findall('./Services/Service'):
-                port = service.get('port') or service.find('./port').text if service.find('./port') else "0"
-                # Création d'un nœud de service
-                service_id = f"{ip}:{port}"
-                
-                # Relation hôte-service
-                result["relations"].append({
-                    "source": ip,
-                    "target": service_id,
-                    "label": "exposes"
-                })
-                
-                # Traitement des vulnérabilités pour ce service
-                for vuln in service.findall('./vulns/vuln') or service.findall('./Vulnerabilities/Vulnerability'):
-                    vuln_id = vuln.get('id') or f"msf_vuln_{len(result['vulnerabilities'])}"
-                    vuln_name = vuln.get('name') or vuln.find('./name').text if vuln.find('./name') else "Vulnérabilité inconnue"
-                    
-                    result["vulnerabilities"][vuln_id] = {
-                        "type": "vulnerability",
-                        "name": vuln_name,
-                        "info": vuln.find('./info').text if vuln.find('./info') else "",
-                        "severity": float(vuln.find('./severity').text) if vuln.find('./severity') else 0.0
+        )
+
+    modules = data.get("modules", []) or data.get("exploits", [])
+    for module in modules:
+        module_id = module.get("id") or f"msf_module_{len(parsed['exploits'])}"
+        parsed["exploits"][module_id] = {
+            "type": "exploit",
+            "name": module.get("name", "Unknown module"),
+            "description": module.get("description", ""),
+            "rank": module.get("rank", "normal"),
+        }
+        for vulnerability_id in module.get("references", []):
+            if vulnerability_id in parsed["vulnerabilities"]:
+                parsed["relations"].append(
+                    {
+                        "source": module_id,
+                        "target": vulnerability_id,
+                        "label": "exploits",
                     }
-                    
-                    # Relation service-vulnérabilité
-                    result["relations"].append({
-                        "source": service_id,
-                        "target": vuln_id,
-                        "label": "has_vulnerability"
-                    })
-        
-    except ET.ParseError as e:
-        logger.error(f"Erreur lors du parsing du fichier XML Metasploit: {e}")
-    
-    return result
+                )
+
+    return parsed
+
+
+def _parse_metasploit_xml(path):
+    parsed = _empty_result()
+    root = ET.parse(path).getroot()
+    hosts = root.findall(".//host") + root.findall(".//Host")
+
+    for host in hosts:
+        address_element = _first_child(host, "address")
+        host_ip = _child_text(host, "address")
+        if not host_ip and address_element is not None:
+            host_ip = address_element.get("addr", "")
+        if not host_ip:
+            continue
+
+        parsed["hosts"][host_ip] = {
+            "type": "host",
+            "ip": host_ip,
+            "os": _child_text(host, "os_name", "os"),
+            "hostname": _child_text(host, "hostname", "name"),
+        }
+
+        host_vulnerabilities = (
+            host.findall("./vulns/vuln")
+            + host.findall("./Vulnerabilities/Vulnerability")
+        )
+        for vulnerability in host_vulnerabilities:
+            _add_xml_vulnerability(parsed, vulnerability, host_ip)
+
+        services = (
+            host.findall("./services/service")
+            + host.findall("./Services/Service")
+        )
+        for service in services:
+            port = service.get("port") or _child_text(service, "port", default="0")
+            service_id = f"{host_ip}:{port}"
+            parsed["services"][service_id] = {
+                "type": "service",
+                "port": port,
+                "service": service.get("name")
+                or _child_text(service, "name", default="unknown"),
+            }
+            parsed["relations"].append(
+                {
+                    "source": host_ip,
+                    "target": service_id,
+                    "label": "exposes",
+                }
+            )
+
+            vulnerabilities = (
+                service.findall("./vulns/vuln")
+                + service.findall("./Vulnerabilities/Vulnerability")
+            )
+            for vulnerability in vulnerabilities:
+                _add_xml_vulnerability(parsed, vulnerability, service_id)
+
+    return parsed
